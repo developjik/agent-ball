@@ -1,0 +1,54 @@
+{
+  "name": "agent-ball",
+  "version": "0.1.0",
+  "description": "Turn-taking orchestration for multi-agent coding on GitHub Issues, with a human-in-the-loop dashboard.",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@10.26.1",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/developjik/agent-ball.git"
+  },
+  "bin": {
+    "agent-ball": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "pnpm run build:cli && pnpm run build:web",
+    "build:cli": "node scripts/build-cli.mjs",
+    "build:web": "vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "pnpm typecheck && pnpm test && pnpm build",
+    "cli": "tsx src/cli.ts",
+    "serve": "tsx src/cli.ts serve --demo",
+    "start": "node dist/cli.js serve --demo"
+  },
+  "dependencies": {
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

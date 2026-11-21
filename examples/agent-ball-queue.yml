@@ -1,0 +1,51 @@
+# Example: print every agent's queue on a weekday morning.
+#
+# Copy this file into .github/workflows/ in the repository you want to compare
+# queues for. It is read-only: it uses the job's own GITHUB_TOKEN and never moves
+# the ball. Workflow files in this repository are added through GitHub's web UI,
+# so this file lives in examples/ rather than .github/workflows/.
+
+name: agent-ball queue
+
+on:
+  schedule:
+    - cron: '0 9 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+
+jobs:
+  queue:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm build
+
+      - name: Board
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node dist/cli.js status --repo "$GITHUB_REPOSITORY"
+
+      - name: Next for each agent
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for agent in claude codex devin; do
+            echo "::group::$agent"
+            node dist/cli.js next --agent "$agent" --repo "$GITHUB_REPOSITORY"
+            echo "::endgroup::"
+          done

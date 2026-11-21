@@ -233,7 +233,7 @@ src/cli/run.ts       argument parsing, commands, exit codes
 src/cli/format.ts    terminal rendering
 src/server.ts        dashboard server (/api/board, static files)
 src/ui/              React dashboard (Vite)
-test/                8 files, 140 tests
+test/                8 files, 141 tests
 examples/            copyable workflow
 docs/                screenshots and protocol details
 ```
@@ -242,7 +242,7 @@ docs/                screenshots and protocol details
 
 ```bash
 pnpm typecheck   # strict TypeScript, no emit
-pnpm test        # 140 tests
+pnpm test        # 141 tests
 pnpm build       # dist/cli.js + dist/web
 pnpm check       # all three
 ```

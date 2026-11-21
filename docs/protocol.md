@@ -122,6 +122,9 @@ reader. Unknown `type` values make the record unreadable.
 **block**: `actor`, `reason`.
 **resolve**: `actor`, `to`, optional `note`.
 
+The next owner of a record is `to` for `handoff` and `resolve`, `agent` for
+`claim` (`nextOwnerOf(record)` in the API), and none for `block`.
+
 ### Reading a thread
 
 Records are ordered by comment time, then by comment id. The latest record gives

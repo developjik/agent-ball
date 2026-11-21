@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { describeRecord, formatRecord, parseRecords, serializeRecord, validateRecord } from '../src/core';
+import {
+  describeRecord,
+  formatRecord,
+  nextOwnerOf,
+  parseRecords,
+  serializeRecord,
+  validateRecord,
+} from '../src/core';
 import type { HandoffRecord, TurnRecord } from '../src/core';
 
 const AT = '2026-11-21T10:00:00.000Z';
@@ -103,6 +110,13 @@ describe('record round-trip', () => {
   it('keeps a record whose comment also has free text', () => {
     const body = `Free text first.\n\n${serializeRecord(handoff)}\n\nFree text after.`;
     expect(parseRecords(body).records).toEqual([handoff]);
+  });
+
+  it('extracts the next owner from each record', () => {
+    expect(nextOwnerOf(handoff)).toBe('human');
+    expect(nextOwnerOf(claim)).toBe('codex');
+    expect(nextOwnerOf(resolve)).toBe('blob');
+    expect(nextOwnerOf(block)).toBeNull();
   });
 
   it('describes records in one line', () => {

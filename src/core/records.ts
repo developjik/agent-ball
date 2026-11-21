@@ -122,6 +122,23 @@ function artifactLines(artifacts: Artifacts): string[] {
   return lines;
 }
 
+/**
+ * The owner a record hands the ball to: the handoff target, the claiming agent,
+ * or the resolved owner. A block parks the ball, so it has no next owner.
+ */
+export function nextOwnerOf(record: TurnRecord): string | null {
+  switch (record.type) {
+    case 'handoff':
+      return record.to;
+    case 'claim':
+      return record.agent;
+    case 'resolve':
+      return record.to;
+    case 'block':
+      return null;
+  }
+}
+
 /** One-line description used by the CLI. */
 export function describeRecord(record: TurnRecord): string {
   switch (record.type) {

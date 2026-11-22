@@ -29,7 +29,8 @@
     "check": "pnpm typecheck && pnpm test && pnpm build",
     "cli": "tsx src/cli.ts",
     "serve": "tsx src/cli.ts serve --demo",
-    "start": "node dist/cli.js serve --demo"
+    "start": "node dist/cli.js serve --demo",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "react": "^19.3.1",
@@ -40,6 +41,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.3.0",
+    "@vitest/coverage-v8": "^5.1.1",
     "esbuild": "^0.28.2",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",

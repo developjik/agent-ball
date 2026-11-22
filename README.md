@@ -13,7 +13,7 @@ timeline. `agent-ball` makes **the issue's labels the single source of truth for
 who may work**, every move a comment with evidence, and the whole queue a board
 you can read in five seconds.
 
-![The dashboard: needs your decision, agents, blocked, unassigned](docs/board.png)
+![The dashboard: needs your decision, agents, blocked, unassigned](https://raw.githubusercontent.com/developjik/agent-ball/main/docs/board.png)
 
 ```text
 agent-ball · developjik/agent-ball
@@ -172,7 +172,7 @@ conflict, partial write), `2` bad usage.
 
 ## Dashboard
 
-![Detail panel with timeline and the suggested next command](docs/detail.png)
+![Detail panel with timeline and the suggested next command](https://raw.githubusercontent.com/developjik/agent-ball/main/docs/detail.png)
 
 - Four columns: **needs your decision**, **with agents** (one lane per agent),
   **blocked**, **unassigned**.

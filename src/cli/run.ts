@@ -70,7 +70,7 @@ Commands
   handoff --issue <n> --to <owner> --summary <text>
           [--from <owner>]   Hand the ball over ("human" or an agent name)
           [--pr <url>] [--branch <name>] [--check <name=status>] [--file <path>]
-          [--needs-human <question>]
+          [--needs-human <question>]   Question for the human; must be non-empty
   block --issue <n> --reason <text> [--actor <owner>]
                              Park a ball until a blocker is resolved
   resolve --issue <n> --to <owner> [--actor <owner>] [--note <text>]
@@ -165,7 +165,7 @@ function defaultIo(): CliIO {
 }
 
 function version(): string {
-  return 'agent-ball 0.1.0';
+  return 'agent-ball 0.1.1';
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
@@ -252,6 +252,14 @@ function has(args: ParsedArgs, key: string): boolean {
 function required(args: ParsedArgs, key: string): string {
   const value = one(args, key);
   if (value === undefined || value.trim() === '') throw new UsageError(`--${key} is required`);
+  return value;
+}
+
+/** An optional flag that, once passed, must carry a non-empty value. */
+function optionalNonEmpty(args: ParsedArgs, key: string): string | undefined {
+  const value = one(args, key);
+  if (value === undefined && args.bools.has(key)) throw new UsageError(`--${key} needs a value`);
+  if (value !== undefined && value.trim() === '') throw new UsageError(`--${key} needs a non-empty value`);
   return value;
 }
 
@@ -395,7 +403,7 @@ async function commandHandoff(args: ParsedArgs, deps: CliDeps, io: CliIO): Promi
       checks,
       files: many(args, 'file'),
     },
-    ...(one(args, 'needs-human') ? { needsHumanDecision: one(args, 'needs-human') as string } : {}),
+    ...(optionalNonEmpty(args, 'needs-human') ? { needsHumanDecision: optionalNonEmpty(args, 'needs-human') as string } : {}),
   });
   return report(outcome, args, io);
 }

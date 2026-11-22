@@ -8,7 +8,7 @@
 
 여러 에이전트 — Devin, Claude Code, Codex, Damon — 와 사람 한 명이 한 리포를 함께 씁니다. 누구 차례인지 규칙이 없으면 둘이 같은 이슈를 집고, 둘 다 브랜치를 밀어 올리고, 당신에게 닿았어야 할 핸드오프는 타임라인 속에 묻힙니다. `agent-ball`은 **이슈의 레이블을 누가 작업할 수 있는지에 대한 유일한 진실**로 만들고, 모든 이동을 증거가 붙은 코멘트로 남기며, 전체 큐를 5초 만에 읽을 수 있는 보드로 보여줍니다.
 
-![대시보드: 당신의 결정이 필요한 것, 에이전트, 막힌 것, 미할당](docs/board.png)
+![대시보드: 당신의 결정이 필요한 것, 에이전트, 막힌 것, 미할당](https://raw.githubusercontent.com/developjik/agent-ball/main/docs/board.png)
 
 ```text
 agent-ball · developjik/agent-ball
@@ -155,7 +155,7 @@ $ agent-ball handoff --issue 12 --to human --summary "Retries fixed." --check ci
 
 ## 대시보드
 
-![타임라인과 제안된 다음 명령이 있는 상세 패널](docs/detail.png)
+![타임라인과 제안된 다음 명령이 있는 상세 패널](https://raw.githubusercontent.com/developjik/agent-ball/main/docs/detail.png)
 
 - 네 개의 열: **당신의 결정이 필요한 것**, **에이전트와 함께 있는 것**(에이전트마다 레인 하나), **막힌 것**, **미할당**.
 - 각 카드는 마지막 이동, 경과 시간, CI 통과/실패 수, PR 수를 담습니다. 막힌 열의 카드는 블로커를 담고, 레이블과 타임라인이 어긋난 이슈는 표시됩니다.

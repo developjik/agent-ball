@@ -1,6 +1,6 @@
 {
   "name": "@developjik/agent-ball",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Turn-taking orchestration for multi-agent coding on GitHub Issues, with a human-in-the-loop dashboard.",
   "license": "MIT",
   "type": "module",
@@ -32,10 +32,6 @@
     "start": "node dist/cli.js serve --demo",
     "test:coverage": "vitest run --coverage"
   },
-  "dependencies": {
-    "react": "^19.3.1",
-    "react-dom": "^19.3.1"
-  },
   "devDependencies": {
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
@@ -43,6 +39,8 @@
     "@vitejs/plugin-react": "^6.3.0",
     "@vitest/coverage-v8": "^5.1.1",
     "esbuild": "^0.28.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vite": "^8.3.8",
@@ -52,5 +50,18 @@
     "onlyBuiltDependencies": [
       "esbuild"
     ]
-  }
+  },
+  "homepage": "https://github.com/developjik/agent-ball#readme",
+  "bugs": {
+    "url": "https://github.com/developjik/agent-ball/issues"
+  },
+  "keywords": [
+    "multi-agent",
+    "orchestration",
+    "github-issues",
+    "human-in-the-loop",
+    "turn-taking",
+    "agents",
+    "cli"
+  ]
 }

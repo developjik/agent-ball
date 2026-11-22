@@ -154,6 +154,31 @@ describe('agent-ball handoff', () => {
     expect(err.join('\n')).toContain('--check status must be');
   });
 
+  it('rejects an empty --needs-human instead of silently dropping it', async () => {
+    const { deps, err } = cli([{ number: 12, labels: ['ball:agent:devin'] }]);
+    expect(
+      await runCli(['handoff', '--issue', '12', '--to', 'human', '--summary', 'x', '--needs-human', ''], deps),
+    ).toBe(2);
+    expect(err.join('\n')).toContain('--needs-human needs a non-empty value');
+
+    const spaced = cli([{ number: 12, labels: ['ball:agent:devin'] }]);
+    expect(
+      await runCli(
+        ['handoff', '--issue', '12', '--to', 'human', '--summary', 'x', '--needs-human', '   '],
+        spaced.deps,
+      ),
+    ).toBe(2);
+    expect(spaced.err.join('\n')).toContain('--needs-human needs a non-empty value');
+  });
+
+  it('rejects a bare --needs-human with no value', async () => {
+    const { deps, err } = cli([{ number: 12, labels: ['ball:agent:devin'] }]);
+    expect(
+      await runCli(['handoff', '--issue', '12', '--to', 'human', '--summary', 'x', '--needs-human'], deps),
+    ).toBe(2);
+    expect(err.join('\n')).toContain('--needs-human needs a value');
+  });
+
   it('reports a collision and leaves the issue alone', async () => {
     const { adapter, deps, err } = cli([{ number: 12, labels: ['ball:agent:codex'] }]);
     const code = await runCli(['handoff', '--issue', '12', '--from', 'devin', '--to', 'human', '--summary', 'mine'], deps);
@@ -234,7 +259,7 @@ describe('agent-ball command surface', () => {
   it('prints a version', async () => {
     const { deps, out } = cli([]);
     expect(await runCli(['version'], deps)).toBe(0);
-    expect(out.join('\n')).toContain('agent-ball 0.1.0');
+    expect(out.join('\n')).toContain('agent-ball 0.1.1');
   });
 
   it('needs a repository when none is given', async () => {

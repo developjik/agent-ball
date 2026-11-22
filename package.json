@@ -1,5 +1,5 @@
 {
-  "name": "agent-ball",
+  "name": "@developjik/agent-ball",
   "version": "0.1.0",
   "description": "Turn-taking orchestration for multi-agent coding on GitHub Issues, with a human-in-the-loop dashboard.",
   "license": "MIT",

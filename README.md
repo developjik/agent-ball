@@ -1,5 +1,7 @@
 # agent-ball ⚽
 
+[한국어](README.ko.md) · English
+
 **One ball, one owner.** Turn-taking for humans and coding agents on GitHub Issues.
 
 [![CI](https://github.com/developjik/agent-ball/actions/workflows/ci.yml/badge.svg)](https://github.com/developjik/agent-ball/actions/workflows/ci.yml)

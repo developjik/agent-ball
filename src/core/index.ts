@@ -10,3 +10,5 @@ export * from './lock';
 export * from './mock-adapter';
 export * from './engine';
 export * from './demo';
+
+export * from './linear-adapter';

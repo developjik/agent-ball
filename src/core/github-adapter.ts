@@ -222,7 +222,7 @@ function toIssue(value: unknown): AdapterIssue {
 function toComment(value: unknown, issue: number, index: number): AdapterComment {
   if (typeof value !== 'object' || value === null) throw new AdapterError('gh returned a non-object comment');
   const raw = value as GhComment;
-  const id = raw.id === undefined ? `unknown-${index}` : String(raw.id);
+  const id = raw.url?.match(/#issuecomment-(\d+)$/)?.[1] ?? (raw.id === undefined ? `unknown-${index}` : String(raw.id));
   return {
     id,
     body: typeof raw.body === 'string' ? raw.body : '',

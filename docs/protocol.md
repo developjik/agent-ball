@@ -143,7 +143,7 @@ acquire(issue, holder):
   comment = post(lease{nonce, holder, issue, now, now+ttl})
   comments = read(issue).comments
   mine = find posted comment in read; fail closed if absent/invalid
-  for each lease: start = server createdAt; expiry = start + payload duration
+  for each lease: start = server createdAt; expiry = start + payload duration + 1 s precision margin
   reference = mine.serverCreatedAt
   delete leases expired at reference
   winner = live leases excluding mine, sorted by (server createdAt, server id), first
@@ -154,7 +154,8 @@ acquire(issue, holder):
 
 `ttl` defaults to 120 s (`lockTtlMs`) and must be finite and positive. Payload
 createdAt/expiresAt encode a duration only; server creation time anchors that duration.
-The new comment's server creation time is a conservative reference for expiry.
+The new comment's server creation time is a conservative reference for expiry. A one-second
+margin prevents second-resolution server timestamps from expiring a claim early.
 Client clock offsets of any magnitude that still produce valid dates do not affect
 ordering or lease age. Server timestamps must be valid and consistent. Read latency
 may delay cleanup, rather than expiring a live claim early. Same-second claims use

@@ -26,8 +26,8 @@ export interface IssueQuery {
 }
 
 /**
- * The narrow surface the engine needs from GitHub. Everything here is
- * implemented twice: once against the real API (`GitHubIssueAdapter`) and once
+ * The narrow surface the engine needs from an issue tracker. Everything here is
+ * implemented against GitHub and Linear APIs and also
  * in memory (`MockAdapter`) so the protocol can be tested deterministically.
  */
 export interface IssueAdapter {

@@ -46,7 +46,7 @@ export interface BoardCounts {
 
 export interface Board {
   readonly generatedAt: string;
-  readonly source: 'github' | 'demo';
+  readonly source: 'github' | 'linear' | 'demo';
   readonly repo: string | null;
   readonly issues: DashboardIssue[];
   readonly counts: BoardCounts;
@@ -66,7 +66,7 @@ export interface BoardGroups {
 
 export function buildBoard(
   snapshots: readonly IssueSnapshot[],
-  options: { source: 'github' | 'demo'; repo: string | null; now?: Date },
+  options: { source: 'github' | 'linear' | 'demo'; repo: string | null; now?: Date },
 ): Board {
   const now = options.now ?? new Date();
   const issues = snapshots

@@ -113,7 +113,7 @@ export class AgentBallEngine {
     });
   }
 
-  async board(options: { source?: 'github' | 'demo'; limit?: number } = {}): Promise<Board> {
+  async board(options: { source?: 'github' | 'linear' | 'demo'; limit?: number } = {}): Promise<Board> {
     const snapshots = await this.list({ limit: options.limit ?? 100 });
     return buildBoard(snapshots, {
       source: options.source ?? 'github',

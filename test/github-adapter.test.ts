@@ -79,7 +79,7 @@ describe('GitHubIssueAdapter — reads', () => {
     const comments = await gh.adapter().listComments(12);
     expect(comments).toEqual([
       {
-        id: 'IC_1',
+        id: '1',
         body: '<!-- agent-ball:v1\n{}\n-->',
         author: 'devin',
         createdAt: '2026-11-21T08:00:00Z',

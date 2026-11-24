@@ -188,22 +188,28 @@ conflict, partial write), `2` bad usage.
 Read the board with `pnpm dev` (hot reload, proxies `/api` to port 4747) or
 `pnpm serve` (built dashboard + live data).
 
-## Leases: why two agents cannot both claim
+## Leases: advisory turn-taking
 
 GitHub has no compare-and-swap for labels, so a claim is coordinated through a
 short lease comment:
 
 1. post `<!-- agent-ball:lock v1 {…} -->` with a nonce and a TTL (default 120 s),
 2. read every live lease on the issue,
-3. the **earliest** lease (ties broken by comment id) wins; everyone else deletes
+3. the earliest **server-created** lease (ties broken by server comment id) wins; everyone else deletes
    their own lease and reports `lock-held`,
 4. the winner re-reads the issue, checks the ball has not moved, writes labels,
    verifies the write by reading them back, posts the record, and releases.
 
-Expired leases are ignored and cleaned up. It is a compare-and-set over an
-append-only log, not a mutex — the window is one comment round-trip, and the
-read-back catches a write that lost a race. `docs/protocol.md` explains exactly
-what can still go wrong.
+Lease duration comes from the payload, but starts at the comment's server creation time.
+A one-second margin covers GitHub's second-resolution timestamps. The new claim's server creation time is the expiry reference, so client clock offsets
+(including offsets larger than the TTL) cannot reorder or prematurely expire a live claim.
+Request/read delays can conservatively postpone cleanup. Expired leases are cleaned up.
+There is no renewal: keep work below the TTL and revalidate state before writing.
+
+This is advisory coordination, not compare-and-set or a hard mutex. Stale or incomplete
+reads and work continuing past the TTL can still overlap. A missing or invalid own comment
+in the read fails closed. Use the same updated protocol on all clients; old clients still
+trust payload timestamps. `docs/protocol.md` describes the remaining limits.
 
 ## GitHub Actions
 
@@ -244,7 +250,7 @@ docs/                screenshots and protocol details
 
 ```bash
 pnpm typecheck   # strict TypeScript, no emit
-pnpm test        # 141 tests
+pnpm test        # unit and integration tests
 pnpm build       # dist/cli.js + dist/web
 pnpm check       # all three
 ```

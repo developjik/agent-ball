@@ -61,10 +61,21 @@ describe('lock lease', () => {
     const first=await acquireLock(adapter,{issue:1,holder:'first',now:NOW,nonce:'a'});
     expect(first.ok).toBe(true);expect(second?.ok).toBe(false);expect(lockComments(adapter)).toHaveLength(1);
   });
+  it('keeps a claim live through the one-second server timestamp precision margin',async()=>{
+    const adapter=makeAdapter();await acquireLock(adapter,{issue:1,holder:'first',now:NOW});adapter.advance(120000);
+    const second=await acquireLock(adapter,{issue:1,holder:'second',now:NOW});expect(second.ok).toBe(false);
+  });
+  it.each([-1000,0,1000])('selects one owner from identical concurrent snapshots with skew %i',async skew=>{
+    const adapter=makeAdapter();const original=adapter.listComments.bind(adapter);let resolve!:()=>void;
+    const barrier=new Promise<void>(done=>resolve=done);let reads=0;let snapshot:Awaited<ReturnType<typeof original>>=[];
+    adapter.listComments=async issue=>{reads++;if(reads===2){snapshot=await original(issue);resolve()}await barrier;return [...snapshot]};
+    const [first,second]=await Promise.all([acquireLock(adapter,{issue:1,holder:'first',now:NOW,nonce:'a'}),acquireLock(adapter,{issue:1,holder:'second',now:new Date(NOW.getTime()+skew),nonce:'b'})]);
+    expect(first.ok).toBe(true);expect(second.ok).toBe(false);expect(lockComments(adapter)).toHaveLength(1);
+  });
   it('expires by elapsed server time even when the next client clock is behind', async () => {
     const adapter = makeAdapter();
     const first = await acquireLock(adapter, {issue:1,holder:'first',now:NOW,nonce:'a'});
-    expect(first.ok).toBe(true); adapter.advance(120_001);
+    expect(first.ok).toBe(true); adapter.advance(121_001);
     const second = await acquireLock(adapter, {issue:1,holder:'second',now:new Date(NOW.getTime()-300000),nonce:'b'});
     expect(second.ok).toBe(true); expect(lockComments(adapter)).toHaveLength(1);
   });
@@ -76,7 +87,8 @@ describe('lock lease', () => {
   it('uses server numeric ids from URLs to break same-second GraphQL id ties', async () => {
     const body=formatLockComment({nonce:'x',holder:'first',issue:1,createdAt:NOW.toISOString(),expiresAt:new Date(NOW.getTime()+120000).toISOString()});
     const parsed=parseLockComment({id:'IC_z',body,author:'first',createdAt:NOW.toISOString(),url:'https://github.com/o/r/issues/1#issuecomment-9007199254740993'});
-    expect(parsed?.commentId).toBe('9007199254740993');
+    expect(parsed?.commentId).toBe('IC_z');
+    expect(parsed?.orderId).toBe('9007199254740993');
   });
   it('lets the next agent in after the holder releases', async () => {
     const adapter = makeAdapter();

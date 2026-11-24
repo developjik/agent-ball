@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { LinearIssueAdapter, createLinearRequest, type LinearRequest } from '../src/core/linear-adapter';
 import { runCli } from '../src/cli/run';
 
@@ -88,6 +88,23 @@ describe('Linear HTTP transport', () => {
     let seen: any; const request = createLinearRequest('test-secret', async (url, init) => { seen = { url, init }; return new Response(JSON.stringify({ data: { viewer: { id: 'x' } } })); });
     expect(await request('query Fixture { viewer { id } }', {})).toEqual({ viewer: { id: 'x' } });
     expect(seen.url).toBe('https://api.linear.app/graphql'); expect(seen.init.redirect).toBe('error'); expect(seen.init.signal).toBeInstanceOf(AbortSignal);
+  });
+  it('aborts an unresponsive request after the deadline without retrying', async () => {
+    vi.useFakeTimers(); let calls = 0;
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockImplementation(ms => {
+      const c = new AbortController(); setTimeout(() => c.abort(), ms); return c.signal;
+    });
+    try {
+      const promise = createLinearRequest('test-secret', async (_, init) => {
+        calls++; return await new Promise<Response>((_, reject) => init!.signal!.addEventListener('abort', () => reject(new Error('secret'))));
+      })('', {});
+      const checked = expect(promise).rejects.toThrow('Linear request failed');
+      await vi.advanceTimersByTimeAsync(15_000); await checked; expect(calls).toBe(1);
+    } finally { timeout.mockRestore(); vi.useRealTimers(); }
+  });
+  it('rejects oversized responses before parsing', async () => {
+    const request = createLinearRequest('test-secret', async () => new Response('x'.repeat(8 * 1024 * 1024 + 1)));
+    await expect(request('', {})).rejects.toThrow('Linear request failed');
   });
   it('does not expose token, GraphQL error, transport error or partially successful data', async () => {
     for (const response of [new Response('secret', { status: 401 }), new Response(JSON.stringify({ data: { x: 1 }, errors: [{ message: 'test-secret' }] }))]) {

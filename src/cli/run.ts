@@ -5,6 +5,7 @@ import type { IssueAdapter } from '../core/adapter';
 import { createDemoAdapter, DEMO_REPO } from '../core/demo';
 import { AgentBallEngine, type TurnOutcome } from '../core/engine';
 import { GitHubIssueAdapter, createGhRunner, type GhRunner } from '../core/github-adapter';
+import { LinearIssueAdapter, type LinearRequest } from '../core/linear-adapter';
 import { isAgentName, isOwnerName } from '../core/labels';
 import { startServer } from '../server';
 import { formatBoard, formatOutcome, ownerLabel, relativeTime, truncate } from './format';
@@ -21,6 +22,7 @@ export interface CliDeps {
   readonly newId?: () => string;
   readonly env?: NodeJS.ProcessEnv;
   readonly runGh?: GhRunner;
+  readonly linearRequest?: LinearRequest;
   /** Built dashboard directory; tests pass an empty temp dir or null. */
   readonly webDir?: string | null;
   /** Serve without blocking (tests). */
@@ -57,7 +59,7 @@ const KNOWN_FLAGS: Record<string, { value: string[]; bool: string[] }> = {
   version: { value: [], bool: [] },
 };
 
-export const USAGE = `agent-ball — turn-taking for agents and humans on GitHub Issues
+export const USAGE = `agent-ball — turn-taking for agents and humans on GitHub or Linear issues
 
 Usage
   agent-ball <command> [options]
@@ -82,6 +84,8 @@ Commands
 
 Options
   --repo <owner/name>        Repository (default: $AGENT_BALL_REPO or the current checkout)
+  --tracker github|linear   Tracker (default: $AGENT_BALL_TRACKER or github)
+  --team KEY                Required Linear team key; issue 12 means KEY-12
   --json                     Machine-readable output
   --demo                     Use the built-in demo board, no repo reads
   -h, --help
@@ -220,7 +224,7 @@ function push(map: Map<string, string[]>, key: string, value: string): void {
 }
 
 function assertKnownFlags(args: ParsedArgs, allowed: { value: string[]; bool: string[] }): void {
-  const valueFlags = new Set(allowed.value);
+  const valueFlags = new Set([...allowed.value, 'tracker', 'team']);
   const boolFlags = new Set(allowed.bool);
   for (const key of args.values.keys()) {
     if (!valueFlags.has(key) && !boolFlags.has(key)) {
@@ -271,9 +275,10 @@ function integer(args: ParsedArgs, key: string, fallback: number): number {
   return value;
 }
 
-function issueArg(args: ParsedArgs): number {
+function issueArg(args: ParsedArgs, deps: CliDeps): number {
   const raw = args.positionals[0] ?? one(args, 'issue');
   if (raw === undefined) throw new UsageError('an issue number is required');
+  if ((one(args, 'tracker') ?? (deps.env ?? process.env).AGENT_BALL_TRACKER) === 'linear' && !/^#?[1-9][0-9]*$/.test(raw)) throw new UsageError('Linear --issue must be a positive numeric team-local number');
   const issue = Number.parseInt(raw.replace(/^#/, ''), 10);
   if (!Number.isInteger(issue) || issue <= 0) throw new UsageError(`"${raw}" is not an issue number`);
   return issue;
@@ -288,7 +293,7 @@ function requireOwner(name: string, what: string): string {
 
 interface Context {
   readonly engine: AgentBallEngine;
-  readonly source: 'github' | 'demo';
+  readonly source: 'github' | 'linear' | 'demo';
   readonly adapter: IssueAdapter;
 }
 
@@ -296,13 +301,27 @@ async function context(args: ParsedArgs, deps: CliDeps): Promise<Context> {
   const now = deps.now ?? (() => new Date());
   if (deps.adapter) {
     const engine = new AgentBallEngine({ adapter: deps.adapter, now, ...(deps.newId ? { newId: deps.newId } : {}) });
-    return { engine, source: deps.adapter.name === 'github' ? 'github' : 'demo', adapter: deps.adapter };
+    return { engine, source: deps.adapter.name === 'github' ? 'github' : deps.adapter.name === 'linear' ? 'linear' : 'demo', adapter: deps.adapter };
   }
+  const environment = deps.env ?? process.env;
+  const tracker = optionalNonEmpty(args, 'tracker') ?? environment.AGENT_BALL_TRACKER ?? 'github';
+  if (tracker !== 'github' && tracker !== 'linear') throw new UsageError('--tracker must be github or linear');
+  if (has(args, 'demo') && tracker === 'linear') throw new UsageError('--demo cannot be combined with Linear');
   if (has(args, 'demo')) {
     const adapter = createDemoAdapter(now());
     const engine = new AgentBallEngine({ adapter, now, ...(deps.newId ? { newId: deps.newId } : {}) });
     return { engine, source: 'demo', adapter };
   }
+  if (tracker === 'linear') {
+    if (args.command === 'serve') throw new UsageError('Linear support is CLI-only; dashboard serve remains GitHub or demo');
+    if (one(args, 'repo')) throw new UsageError('--repo is for GitHub; use --team for Linear');
+    const team = optionalNonEmpty(args, 'team') ?? environment.AGENT_BALL_LINEAR_TEAM;
+    if (!team) throw new UsageError('Linear requires --team KEY or AGENT_BALL_LINEAR_TEAM');
+    const adapter = new LinearIssueAdapter({ team, token: environment.LINEAR_API_KEY, request: deps.linearRequest });
+    const engine = new AgentBallEngine({ adapter, now, ...(deps.newId ? { newId: deps.newId } : {}) });
+    return { engine, source: 'linear', adapter };
+  }
+  if (one(args, 'team')) throw new UsageError('--team requires --tracker linear');
   const repo = await resolveRepo(args, deps);
   const runner = deps.runGh ?? createGhRunner(deps.env ?? process.env);
   const adapter = new GitHubIssueAdapter({ repo, run: runner });
@@ -371,7 +390,7 @@ async function commandNext(args: ParsedArgs, deps: CliDeps, io: CliIO): Promise<
 }
 
 async function commandClaim(args: ParsedArgs, deps: CliDeps, io: CliIO): Promise<number> {
-  const issue = issueArg(args);
+  const issue = issueArg(args, deps);
   const agent = required(args, 'agent');
   const contextValue = await context(args, deps);
   const outcome = await contextValue.engine.claim({
@@ -383,7 +402,7 @@ async function commandClaim(args: ParsedArgs, deps: CliDeps, io: CliIO): Promise
 }
 
 async function commandHandoff(args: ParsedArgs, deps: CliDeps, io: CliIO): Promise<number> {
-  const issue = issueArg(args);
+  const issue = issueArg(args, deps);
   const to = requireOwner(required(args, 'to'), '--to');
   const summary = required(args, 'summary');
   const contextValue = await context(args, deps);
@@ -409,7 +428,7 @@ async function commandHandoff(args: ParsedArgs, deps: CliDeps, io: CliIO): Promi
 }
 
 async function commandBlock(args: ParsedArgs, deps: CliDeps, io: CliIO): Promise<number> {
-  const issue = issueArg(args);
+  const issue = issueArg(args, deps);
   const reason = required(args, 'reason');
   const contextValue = await context(args, deps);
   const actor = one(args, 'actor')
@@ -420,7 +439,7 @@ async function commandBlock(args: ParsedArgs, deps: CliDeps, io: CliIO): Promise
 }
 
 async function commandResolve(args: ParsedArgs, deps: CliDeps, io: CliIO): Promise<number> {
-  const issue = issueArg(args);
+  const issue = issueArg(args, deps);
   const to = requireOwner(required(args, 'to'), '--to');
   const actor = one(args, 'actor') ?? 'human';
   const contextValue = await context(args, deps);
@@ -441,7 +460,7 @@ async function commandLabels(args: ParsedArgs, deps: CliDeps, io: CliIO): Promis
   const invalid = agents.filter((name) => !isAgentName(name));
   if (invalid.length > 0) throw new UsageError(`invalid agent names: ${invalid.join(', ')}`);
 
-  if (deps.adapter) throw new UsageError('labels can only be created against GitHub');
+  if (deps.adapter || (one(args, 'tracker') ?? (deps.env ?? process.env).AGENT_BALL_TRACKER ?? 'github') !== 'github' || one(args, 'team')) throw new UsageError('labels creates GitHub labels only; pre-create ungrouped ball labels in Linear');
   const repo = await resolveRepo(args, deps);
   const runner = deps.runGh ?? createGhRunner(deps.env ?? process.env);
   const adapter = new GitHubIssueAdapter({ repo, run: runner });

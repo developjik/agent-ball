@@ -10,7 +10,7 @@ agent that wants to take part. The README is the tour; this is the reference.
 | **ball** | the exclusive right to work on one issue |
 | **owner** | whoever holds the ball: an agent, `human`, or nobody |
 | **record** | one comment written by agent-ball, holding prose and a machine block |
-| **lease** | a short-lived comment that makes a move exclusive for its duration |
+| **lease** | a short-lived advisory claim comment for a move |
 | **move** | `claim`, `handoff`, `block` or `resolve` |
 
 An agent name is 1–38 characters of `[a-z0-9._-]`, starting with a letter or
@@ -141,27 +141,38 @@ the thread stays usable.
 acquire(issue, holder):
   nonce   = uuid()
   comment = post(lease{nonce, holder, issue, now, now+ttl})
-  leases  = read(issue).comments.filter(live or expired)
-  delete expired leases
-  winner  = live leases excluding mine, sorted by (createdAt, numeric id), first
+  comments = read(issue).comments
+  mine = find posted comment in read; fail closed if absent/invalid
+  for each lease: start = server createdAt; expiry = start + payload duration
+  reference = mine.serverCreatedAt
+  delete leases expired at reference
+  winner = live leases excluding mine, sorted by (server createdAt, server id), first
   if winner exists and winner is earlier than mine:
       delete mine; return rejected(winner.holder, winner.expiresAt)
   return acquired(mine)
 ```
 
-`ttl` defaults to 120 s (`lockTtlMs`). Two claimants that read the same set of
-leases always pick the same winner, so they converge even when they post at the
-same moment: the loser withdraws its own comment. A claimant that dies before
-releasing leaves a lease that expires on its own.
+`ttl` defaults to 120 s (`lockTtlMs`) and must be finite and positive. Payload
+createdAt/expiresAt encode a duration only; server creation time anchors that duration.
+The new comment's server creation time is a conservative reference for expiry.
+Client clock offsets of any magnitude that still produce valid dates do not affect
+ordering or lease age. Server timestamps must be valid and consistent. Read latency
+may delay cleanup, rather than expiring a live claim early. Same-second claims use
+the numeric issue-comment ID from the server URL when available, without floating-point
+rounding. An adapter with nonnumeric IDs must provide stable IDs for deterministic ties.
 
 ### What the lease does and does not guarantee
 
-- **Guarantees:** at most one holder proceeds from a consistent read; a stale
-  claim after a crash clears within `ttl`.
-- **Does not guarantee:** serialisation against writers that do not use the
-  protocol (a human clicking labels), or a hard mutex — GitHub has no
-  compare-and-swap. A label write is verified by reading the labels back; a
-  mismatch aborts the move with `state-changed` before the record is posted.
+- Consistent, complete reads by updated clients select the same winner for live claims.
+  The loser withdraws its own comment. A missing/invalid own comment fails closed.
+- This is not compare-and-set or a hard mutex. Stale/incomplete reads, server metadata
+  inconsistency, or nonparticipating writers can still cause overlapping work.
+- There is no renewal or fencing token. Work that continues after its lease expires
+  can overlap a later holder. Keep critical work shorter than TTL and revalidate state.
+- Crash cleanup occurs on a later claim, not on a background timer. A delayed read may
+  retain a lease longer than TTL. All clients must upgrade together; old clients still
+  use payload timestamps and do not get these clock-offset guarantees.
+- Label read-back can detect mismatches but cannot make multi-step writes atomic.
 
 ### Ordering of a move
 

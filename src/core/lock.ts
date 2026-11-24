@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { AdapterComment, IssueAdapter } from './adapter';
+import { AdapterError, type AdapterComment, type IssueAdapter } from './adapter';
 
 /**
  * A short lease on one issue, published as a comment so every agent reads the
@@ -7,10 +7,9 @@ import type { AdapterComment, IssueAdapter } from './adapter';
  * alive, the one posted first (then the lowest comment id) holds the ball, and
  * every other claimant withdraws its comment.
  *
- * This is a compare-and-set over an append-only log rather than a server-side
- * mutex, which is what GitHub offers. It converges even when two agents post at
- * the same moment: both read both leases, both pick the same winner, and only
- * the winner keeps its claim.
+ * Order and lease age use server comment metadata, never the client clock.
+ * This is advisory coordination, not compare-and-set or a server-side mutex.
+ * Consistent reads choose one winner; stale reads and work beyond TTL can overlap.
  */
 export interface LockRecord {
   readonly nonce: string;
@@ -62,24 +61,31 @@ export function parseLockComment(comment: AdapterComment): LockRecord | null {
   ) {
     return null;
   }
-  if (Number.isNaN(Date.parse(raw.expiresAt)) || Number.isNaN(Date.parse(raw.createdAt))) return null;
+  const clientStart = Date.parse(raw.createdAt);
+  const duration = Date.parse(raw.expiresAt) - clientStart;
+  const serverStart = Date.parse(comment.createdAt);
+  if (!Number.isFinite(clientStart) || !Number.isFinite(duration) || duration <= 0 ||
+      !Number.isFinite(serverStart) || !Number.isFinite(new Date(serverStart + duration).getTime())) return null;
+  // The body carries only duration. The adapter's read supplies server time.
+  const expiresAt = new Date(serverStart + duration).toISOString();
   return {
     nonce: raw.nonce,
     holder: raw.holder,
     issue: raw.issue,
-    createdAt: raw.createdAt,
-    expiresAt: raw.expiresAt,
-    commentId: comment.id,
+    createdAt: new Date(serverStart).toISOString(),
+    expiresAt,
+    commentId: comment.url?.match(/#issuecomment-(\d+)$/)?.[1] ?? comment.id,
   };
 }
 
 function compareLocks(a: LockRecord, b: LockRecord): number {
   const byTime = Date.parse(a.createdAt) - Date.parse(b.createdAt);
   if (byTime !== 0) return byTime;
-  const ida = Number.parseInt(a.commentId, 10);
-  const idb = Number.parseInt(b.commentId, 10);
-  if (Number.isNaN(ida) || Number.isNaN(idb)) return a.commentId.localeCompare(b.commentId);
-  return ida - idb;
+  if (/^\d+$/.test(a.commentId) && /^\d+$/.test(b.commentId)) {
+    const ida = BigInt(a.commentId), idb = BigInt(b.commentId);
+    return ida < idb ? -1 : ida > idb ? 1 : 0;
+  }
+  return a.commentId < b.commentId ? -1 : a.commentId > b.commentId ? 1 : 0;
 }
 
 export type AcquireResult =
@@ -98,6 +104,7 @@ export interface AcquireOptions {
 export async function acquireLock(adapter: IssueAdapter, options: AcquireOptions): Promise<AcquireResult> {
   const now = options.now ?? new Date();
   const ttl = options.ttlMs ?? LOCK_TTL_MS;
+  if (!Number.isFinite(ttl) || ttl <= 0) throw new AdapterError('lock TTL must be a finite positive number');
   const nonce = options.nonce ?? randomUUID();
   const createdAt = now.toISOString();
   const expiresAt = new Date(now.getTime() + ttl).toISOString();
@@ -106,17 +113,17 @@ export async function acquireLock(adapter: IssueAdapter, options: AcquireOptions
     adapter.repo === null ? options.issue : options.issue,
     formatLockComment({ nonce, holder: options.holder, issue: options.issue, createdAt, expiresAt }),
   );
-  const mine: LockRecord = {
-    nonce,
-    holder: options.holder,
-    issue: options.issue,
-    createdAt,
-    expiresAt,
-    commentId: comment.id,
-  };
-
   const comments = await adapter.listComments(options.issue);
-  const nowMs = now.getTime();
+  const ownEntry = comments.find(entry => entry.id === comment.id ||
+    entry.url?.match(/#issuecomment-(\d+)$/)?.[1] === comment.id);
+  const mine = ownEntry ? parseLockComment(ownEntry) : null;
+  if (!mine || mine.nonce !== nonce || mine.issue !== options.issue) {
+    await adapter.deleteComment(options.issue, comment.id).catch(() => undefined);
+    throw new AdapterError('posted lock is missing valid server metadata; retry');
+  }
+  // Our own server creation time is a conservative age reference. Read latency
+  // may delay expiry, but a skewed client clock cannot expire another lease early.
+  const nowMs = Date.parse(mine.createdAt);
   const live: LockRecord[] = [];
   const stale: LockRecord[] = [];
   for (const entry of comments) {

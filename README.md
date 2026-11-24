@@ -201,7 +201,7 @@ short lease comment:
    verifies the write by reading them back, posts the record, and releases.
 
 Lease duration comes from the payload, but starts at the comment's server creation time.
-The new claim's server creation time is the expiry reference, so client clock offsets
+A one-second margin covers GitHub's second-resolution timestamps. The new claim's server creation time is the expiry reference, so client clock offsets
 (including offsets larger than the TTL) cannot reorder or prematurely expire a live claim.
 Request/read delays can conservatively postpone cleanup. Expired leases are cleaned up.
 There is no renewal: keep work below the TTL and revalidate state before writing.

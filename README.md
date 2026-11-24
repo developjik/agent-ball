@@ -275,3 +275,57 @@ MIT © 정인권 (developjik)
 ## Development baseline (DEV-128)
 
 Use Node.js 22.12.0 (`.nvmrc`) for development and CI. Vitest 5.1.1 requires Node 22.12+ on its supported release lines; Node 20.19 is outside its declared development support range. It may execute there, but CI does not treat that as supported test-runner usage. This development requirement does not change the package engine declaration. Runtime compatibility must be checked using the built package, separately from the test runner. TypeScript 7.0.2 is the development compiler baseline.
+
+## Linear tracker (opt-in CLI)
+
+GitHub remains the default. Linear implements the same `IssueAdapter` surface,
+including status/next, ball labels, comment records and advisory comment leases.
+No hosted service or package publication is needed.
+
+```sh
+# Set LINEAR_API_KEY through your local secret manager, not a command-line flag.
+agent-ball status --tracker linear --team DEV
+agent-ball next --tracker linear --team DEV --agent codex
+agent-ball handoff --tracker linear --team DEV --issue 12 \
+  --from human --to codex --summary "Implementation ready for the next turn"
+```
+
+`--team` is an uppercase Linear team key, not its display name or UUID.
+`--issue 12` always means `DEV-12` in that configured team. The existing numeric
+board/record shape stays unchanged; full identifiers and UUIDs are not accepted
+as issue arguments. `AGENT_BALL_TRACKER=linear` and
+`AGENT_BALL_LINEAR_TEAM=DEV` can supply defaults. Never combine `--repo` or
+`--demo` with Linear. Dashboard `serve` is still GitHub/demo-only.
+
+Before a write, manually create **standalone, ungrouped** Linear labels named
+`ball:human`, `ball:blocked`, and `ball:agent:<name>` for your agents. Do not use
+Linear label groups, which can enforce single selection. Workspace or team
+labels work, but duplicate names fail closed. `agent-ball labels` still creates
+GitHub labels only and will refuse Linear. No labels are created automatically.
+Ball labels represent ownership; workflow status only maps completed/canceled
+to closed and every other state to open. The adapter never changes workflow
+status, assignee, team or unrelated labels. Additive/removal label IDs preserve
+unrelated labels. A readback verifies that a write stuck; this is not CAS.
+
+Authentication uses a caller-provided `LINEAR_API_KEY` (personal API key value,
+or `Bearer ...` for a pre-obtained OAuth token) at the fixed official HTTPS
+GraphQL endpoint. Obtain and manage credentials yourself; the tool does not
+create keys, request OAuth grants or store tokens. Provide only the permissions
+your commands need, including issue label/comment writes and deletion of its
+lease comments for handoff. Read-only credentials work for status/next. Errors
+omit upstream bodies and credentials. Requests time out after 15 seconds and
+responses are bounded to 8 MiB. Writes are not automatically retried: a timeout
+may follow a successful write, so inspect the issue before retrying.
+
+Issue lists are bounded to 2,000 results; comment reads paginate up to 2,000
+comments and refuse partial lock views. Issues with more than 250 labels or a
+label catalog over 250 entries fail closed rather than silently ignoring labels.
+The lease is advisory and uses server comment metadata, not an atomic server
+lock. Stale reads and work exceeding TTL can overlap, just as with GitHub.
+Only comments observed on the configured issue can be removed by this adapter.
+
+Validation covers the real CLI/engine/adapter path against a deterministic local
+GraphQL service simulation, including a handoff record and ball-label readback.
+It does not claim a live Linear workspace handoff. Existing workspace issues are
+not used as test fixtures. API reference:
+https://linear.app/developers/graphql

@@ -18,6 +18,7 @@ export interface LockRecord {
   readonly createdAt: string;
   readonly expiresAt: string;
   readonly commentId: string;
+  readonly orderId?: string;
 }
 
 export const LOCK_TTL_MS = 120_000;
@@ -32,12 +33,13 @@ export function formatLockComment(lock: Omit<LockRecord, 'commentId'>): string {
     createdAt: lock.createdAt,
     expiresAt: lock.expiresAt,
   };
+  const durationMs = Date.parse(lock.expiresAt) - Date.parse(lock.createdAt);
   return [
     `<!-- agent-ball:lock v1`,
     JSON.stringify(payload, null, 2).replace(/-->/g, '--\\u003e'),
     `-->`,
     '',
-    `_agent-ball lock lease held by ${lock.holder} until ${lock.expiresAt}._`,
+    `_agent-ball lock lease held by ${lock.holder} for ${durationMs} ms from server creation (+1 s timestamp precision margin)._`,
   ].join('\n');
 }
 
@@ -65,27 +67,29 @@ export function parseLockComment(comment: AdapterComment): LockRecord | null {
   const duration = Date.parse(raw.expiresAt) - clientStart;
   const serverStart = Date.parse(comment.createdAt);
   if (!Number.isFinite(clientStart) || !Number.isFinite(duration) || duration <= 0 ||
-      !Number.isFinite(serverStart) || !Number.isFinite(new Date(serverStart + duration).getTime())) return null;
+      !Number.isFinite(serverStart) || !Number.isFinite(new Date(serverStart + duration + 1000).getTime())) return null;
   // The body carries only duration. The adapter's read supplies server time.
-  const expiresAt = new Date(serverStart + duration).toISOString();
+  const expiresAt = new Date(serverStart + duration + 1000).toISOString();
   return {
     nonce: raw.nonce,
     holder: raw.holder,
     issue: raw.issue,
     createdAt: new Date(serverStart).toISOString(),
     expiresAt,
-    commentId: comment.url?.match(/#issuecomment-(\d+)$/)?.[1] ?? comment.id,
+    commentId: comment.id,
+    orderId: comment.url?.match(/#issuecomment-(\d+)$/)?.[1] ?? comment.id,
   };
 }
 
 function compareLocks(a: LockRecord, b: LockRecord): number {
   const byTime = Date.parse(a.createdAt) - Date.parse(b.createdAt);
   if (byTime !== 0) return byTime;
-  if (/^\d+$/.test(a.commentId) && /^\d+$/.test(b.commentId)) {
-    const ida = BigInt(a.commentId), idb = BigInt(b.commentId);
+  const aid = a.orderId ?? a.commentId, bid = b.orderId ?? b.commentId;
+  if (/^\d+$/.test(aid) && /^\d+$/.test(bid)) {
+    const ida = BigInt(aid), idb = BigInt(bid);
     return ida < idb ? -1 : ida > idb ? 1 : 0;
   }
-  return a.commentId < b.commentId ? -1 : a.commentId > b.commentId ? 1 : 0;
+  return aid < bid ? -1 : aid > bid ? 1 : 0;
 }
 
 export type AcquireResult =
